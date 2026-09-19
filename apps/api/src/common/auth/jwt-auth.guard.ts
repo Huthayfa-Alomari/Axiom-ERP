@@ -20,7 +20,12 @@ export class JwtAuthGuard implements CanActivate {
         audience: process.env.AUTH_JWT_AUDIENCE,
       });
       if (typeof payload.sub !== 'string') throw new Error('Missing sub');
-      req.principal = { id: payload.sub, email: typeof payload.email === 'string' ? payload.email : null };
+      const rawOrg = payload.organization_id ?? payload.org_id;
+      req.principal = {
+        id: payload.sub,
+        email: typeof payload.email === 'string' ? payload.email : null,
+        organizationId: typeof rawOrg === 'string' ? rawOrg : null,
+      };
       return true;
     } catch {
       throw new UnauthorizedException('Invalid or expired token');

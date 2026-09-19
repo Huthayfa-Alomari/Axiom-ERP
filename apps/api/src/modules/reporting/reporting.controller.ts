@@ -1,21 +1,72 @@
 import { Controller, Get, Query } from '@nestjs/common';
-import { sql } from 'kysely';
-import { DatabaseService } from '../../infrastructure/database/database.service.js';
+import { CurrentTenant } from '../../common/tenant/current-tenant.decorator.js';
+import { ZodValidationPipe } from '../../common/validation/zod-validation.pipe.js';
+import type { TenantRequestContext } from '../../infrastructure/database/database.service.js';
+import { FinancialReportingService } from './application/financial-reporting.service.js';
+import {
+  balanceSheetQuerySchema,
+  cashFlowQuerySchema,
+  drillDownQuerySchema,
+  profitAndLossQuerySchema,
+  reconciliationQuerySchema,
+  trialBalanceQuerySchema,
+  type BalanceSheetQuery,
+  type CashFlowQuery,
+  type DrillDownQuery,
+  type ProfitAndLossQuery,
+  type ReconciliationQuery,
+  type TrialBalanceQuery,
+} from './dto/financial-reporting.dto.js';
 
 @Controller('reports/financial')
 export class ReportingController {
-  constructor(private readonly database: DatabaseService) {}
-  @Get('profit-and-loss') async pnl(@Query('startDate') startDate:string,@Query('endDate') endDate:string) {
-    return (await sql`select * from reporting.get_profit_and_loss(${startDate}::date,${endDate}::date)`.execute(this.database.db)).rows;
+  constructor(private readonly reporting: FinancialReportingService) {}
+
+  @Get('profit-and-loss')
+  profitAndLoss(
+    @CurrentTenant() ctx: TenantRequestContext,
+    @Query(new ZodValidationPipe(profitAndLossQuerySchema)) query: ProfitAndLossQuery,
+  ) {
+    return this.reporting.profitAndLoss(ctx, query);
   }
-  @Get('balance-sheet') async balance(@Query('asOfDate') asOfDate:string) {
-    return (await sql`select * from reporting.get_balance_sheet(${asOfDate}::date)`.execute(this.database.db)).rows;
+
+  @Get('balance-sheet')
+  balanceSheet(
+    @CurrentTenant() ctx: TenantRequestContext,
+    @Query(new ZodValidationPipe(balanceSheetQuerySchema)) query: BalanceSheetQuery,
+  ) {
+    return this.reporting.balanceSheet(ctx, query);
   }
-  @Get('cash-flow') async cashFlow(@Query('startDate') startDate:string,@Query('endDate') endDate:string) {
-    return (await sql`select * from reporting.get_cash_flow_direct(${startDate}::date,${endDate}::date)`.execute(this.database.db)).rows;
+
+  @Get('cash-flow')
+  cashFlow(
+    @CurrentTenant() ctx: TenantRequestContext,
+    @Query(new ZodValidationPipe(cashFlowQuerySchema)) query: CashFlowQuery,
+  ) {
+    return this.reporting.cashFlow(ctx, query);
   }
-  @Get('reconciliation') async reconciliation(@Query('asOfDate') asOfDate:string) {
-    const rows=(await sql<any>`select * from reconciliation.run_suite(${asOfDate}::date)`.execute(this.database.db)).rows;
-    return { healthy: rows.every((r:any)=>r.passed), modules: rows };
+
+  @Get('trial-balance')
+  trialBalance(
+    @CurrentTenant() ctx: TenantRequestContext,
+    @Query(new ZodValidationPipe(trialBalanceQuerySchema)) query: TrialBalanceQuery,
+  ) {
+    return this.reporting.trialBalance(ctx, query);
+  }
+
+  @Get('drill-down')
+  drillDown(
+    @CurrentTenant() ctx: TenantRequestContext,
+    @Query(new ZodValidationPipe(drillDownQuerySchema)) query: DrillDownQuery,
+  ) {
+    return this.reporting.drillDown(ctx, query);
+  }
+
+  @Get('reconciliation')
+  reconciliation(
+    @CurrentTenant() ctx: TenantRequestContext,
+    @Query(new ZodValidationPipe(reconciliationQuerySchema)) query: ReconciliationQuery,
+  ) {
+    return this.reporting.reconciliation(ctx, query);
   }
 }
