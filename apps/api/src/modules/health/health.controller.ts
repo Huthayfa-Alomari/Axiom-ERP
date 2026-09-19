@@ -1,7 +1,7 @@
 import { Controller, Get, ServiceUnavailableException } from '@nestjs/common';
 import { sql } from 'kysely';
-import { DatabaseService } from '../../infrastructure/database/database.service';
-import { Public } from '../../common/auth/public.decorator';
+import { DatabaseService } from '../../infrastructure/database/database.service.js';
+import { Public } from '../../common/auth/public.decorator.js';
 
 @Controller('health')
 export class HealthController {

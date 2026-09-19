@@ -1,10 +1,10 @@
 import { Module } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
-import { DatabaseModule } from './infrastructure/database/database.module';
-import { JwtAuthGuard } from './common/auth/jwt-auth.guard';
-import { HealthModule } from './modules/health/health.module';
-import { ReportingModule } from './modules/reporting/reporting.module';
-import { WorkspaceModule } from './modules/workspace/workspace.module';
+import { DatabaseModule } from './infrastructure/database/database.module.js';
+import { JwtAuthGuard } from './common/auth/jwt-auth.guard.js';
+import { HealthModule } from './modules/health/health.module.js';
+import { ReportingModule } from './modules/reporting/reporting.module.js';
+import { WorkspaceModule } from './modules/workspace/workspace.module.js';
 
 @Module({
   imports: [DatabaseModule, HealthModule, ReportingModule, WorkspaceModule],

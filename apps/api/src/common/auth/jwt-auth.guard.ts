@@ -1,11 +1,12 @@
 import { CanActivate, ExecutionContext, Injectable, UnauthorizedException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { jwtVerify } from 'jose';
-import { PUBLIC_ROUTE } from './public.decorator';
+import { PUBLIC_ROUTE } from './public.decorator.js';
 
 @Injectable()
 export class JwtAuthGuard implements CanActivate {
   constructor(private readonly reflector: Reflector) {}
+
   async canActivate(context: ExecutionContext) {
     if (this.reflector.getAllAndOverride<boolean>(PUBLIC_ROUTE,[context.getHandler(),context.getClass()])) return true;
     const req = context.switchToHttp().getRequest<any>();

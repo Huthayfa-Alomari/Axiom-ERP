@@ -1,6 +1,6 @@
 import { Controller, Get, Query } from '@nestjs/common';
 import { sql } from 'kysely';
-import { DatabaseService } from '../../infrastructure/database/database.service';
+import { DatabaseService } from '../../infrastructure/database/database.service.js';
 
 @Controller('reports/financial')
 export class ReportingController {

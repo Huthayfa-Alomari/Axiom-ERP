@@ -1,6 +1,6 @@
 import { Controller, Get, NotFoundException, Param } from '@nestjs/common';
 import { sql } from 'kysely';
-import { DatabaseService } from '../../infrastructure/database/database.service';
+import { DatabaseService } from '../../infrastructure/database/database.service.js';
 
 @Controller('workspace')
 export class WorkspaceController {
