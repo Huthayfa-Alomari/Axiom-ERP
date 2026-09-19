@@ -1,0 +1,8 @@
+{
+  "name": "@axiom/contracts",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": { "build": "tsc", "lint": "tsc --noEmit", "typecheck": "tsc --noEmit", "test": "echo no-tests" },
+  "dependencies": { "zod": "latest" },
+  "devDependencies": { "typescript": "latest" }
+}

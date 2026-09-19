@@ -1,0 +1,25 @@
+{
+  "name": "axiom-erp",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@10.0.0",
+  "scripts": {
+    "dev": "turbo dev",
+    "build": "turbo build",
+    "lint": "turbo lint",
+    "typecheck": "turbo typecheck",
+    "test": "turbo test",
+    "test:integration": "vitest run tests/integration",
+    "db:migrate": "tsx scripts/migrate.ts",
+    "db:release-check": "tsx scripts/release-check-db.ts",
+    "release:gate": "pnpm lint && pnpm typecheck && pnpm build && pnpm test && pnpm test:integration && pnpm db:release-check"
+  },
+  "devDependencies": {
+    "@types/node": "latest",
+    "pg": "latest",
+    "tsx": "latest",
+    "turbo": "latest",
+    "typescript": "latest",
+    "vitest": "latest"
+  }
+}

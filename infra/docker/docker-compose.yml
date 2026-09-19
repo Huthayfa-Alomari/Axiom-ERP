@@ -1,0 +1,19 @@
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: axiom
+      POSTGRES_USER: axiom_admin
+      POSTGRES_PASSWORD: axiom_admin
+    ports: ["5432:5432"]
+    volumes: ["axiom_pg:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL","pg_isready -U axiom_admin -d axiom"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+  ai-service:
+    build: ../../apps/ai-service
+    ports: ["8000:8000"]
+volumes:
+  axiom_pg:

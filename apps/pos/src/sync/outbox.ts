@@ -1,0 +1,4 @@
+import { getPosDb, type OutboxCommand } from '../db/pos-db';
+async function nextSequence(){const db=await getPosDb();const tx=db.transaction('state','readwrite');const row=await tx.store.get('nextSequence');const n=row?Number(row.value):1;await tx.store.put({key:'nextSequence',value:String(n+1)});await tx.done;return n;}
+export async function enqueueSale(payload:unknown):Promise<OutboxCommand>{const db=await getPosDb();const c:OutboxCommand={commandId:crypto.randomUUID(),sequence:await nextSequence(),type:'POS_SALE',payload,status:'pending',createdAt:new Date().toISOString(),retryCount:0,lastError:null};await db.put('outbox',c);return c;}
+export async function pendingCommands(){const db=await getPosDb();return (await db.getAll('outbox')).filter(c=>c.status==='pending'||c.status==='sending').sort((a,b)=>a.sequence-b.sequence);}

@@ -1,0 +1,13 @@
+{
+  "name": "@axiom/pos",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "lint": "tsc --noEmit",
+    "typecheck": "tsc --noEmit",
+    "test": "echo no-pos-tests"
+  },
+  "dependencies": { "idb": "latest", "socket.io-client": "latest" },
+  "devDependencies": { "typescript": "latest" }
+}
