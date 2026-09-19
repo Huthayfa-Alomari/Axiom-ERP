@@ -9,5 +9,5 @@
     "test": "echo no-pos-tests"
   },
   "dependencies": { "idb": "latest", "socket.io-client": "latest" },
-  "devDependencies": { "typescript": "latest" }
+  "devDependencies": { "typescript": "^6.0.0" }
 }
