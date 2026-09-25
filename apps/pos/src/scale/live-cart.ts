@@ -68,6 +68,6 @@ export function priceLiveScaleLine(
   };
 }
 
-export function totalLiveScaleLines(lines: readonly LiveScaleLine[]): string {
+export function totalLiveScaleLines(lines: readonly { lineTotal: string }[]): string {
   return lines.reduce((total, line) => total.plus(line.lineTotal), new Decimal(0)).toFixed(4);
 }

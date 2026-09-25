@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Cable, CircleAlert, PackagePlus, RefreshCw, Scale, Trash2 } from 'lucide-react';
+import { Barcode, Cable, CircleAlert, PackagePlus, RefreshCw, Scale, Trash2 } from 'lucide-react';
 import { ScaleStabilityTracker, type ScaleState } from '@axiom/pos/live-scale';
 import {
   priceLiveScaleLine, totalLiveScaleLines,
@@ -10,10 +10,15 @@ import {
 import {
   WebSerialScale, defaultSerialScaleSettings, type SerialScaleSettings,
 } from '@axiom/pos/web-serial';
+import {
+  priceBarcodeScaleLine, type BarcodeScaleLine, type LocalScaleMapping, type LocalScaleProfile,
+} from '@axiom/pos/barcode';
 import styles from './pos.module.css';
 
 type ProductRow = WeighableProduct & { availableQuantity: string };
 type Catalog = { settings: SerialScaleSettings | null; products: ProductRow[]; currencyCode: string };
+type BarcodeConfig = { profiles: LocalScaleProfile[]; mappings: LocalScaleMapping[] };
+type PreviewLine = LiveScaleLine | BarcodeScaleLine;
 
 const stateText: Record<ScaleState, string> = {
   waiting: 'بانتظار قراءة الميزان',
@@ -32,6 +37,12 @@ function friendlyError(error: unknown): string {
     SCALE_READING_ALREADY_USED: 'أزل السلعة من الميزان ثم ضع السلعة التالية.',
     SCALE_INVALID_NET_WEIGHT_OR_PRICE: 'الوزن الصافي أو سعر الكيلو غير صالح. راجع وزن العبوة.',
     SCALE_PRECISION_EXCEEDS_FOUR_DECIMALS: 'الصنف أو الميزان يتجاوز دقة أربعة منازل عشرية.',
+    SCALE_BARCODE_ALREADY_IN_CART: 'هذا الملصق موجود في السلة بالفعل.',
+    SCALE_BARCODE_NOT_RECOGNIZED: 'باركود الميزان غير معروف. راجع صيغة الملصق وربط PLU والصنف ورقم التحقق.',
+    SCALE_PRICE_LABEL_NEEDS_WEIGHT: 'هذا الملصق يحتوي السعر فقط؛ يلزم وزن السلعة لترحيل كمية المخزون بدقة.',
+    SCALE_PRODUCT_NOT_IN_CATALOG: 'الصنف المرتبط بالباركود غير موجود ضمن أصناف الكيلو المفعّلة.',
+    SCALE_PRODUCT_MUST_USE_KILOGRAMS: 'يجب أن تكون وحدة الصنف كيلوغرام.',
+    SCALE_NET_WEIGHT_MUST_BE_POSITIVE: 'الوزن الصافي على الملصق غير صالح.',
   };
   return known[message] ?? message;
 }
@@ -47,7 +58,9 @@ export default function PosPage() {
   const [products, setProducts] = useState<ProductRow[]>([]);
   const [currencyCode, setCurrencyCode] = useState('');
   const [selectedId, setSelectedId] = useState('');
-  const [cart, setCart] = useState<LiveScaleLine[]>([]);
+  const [cart, setCart] = useState<PreviewLine[]>([]);
+  const [barcodeConfig, setBarcodeConfig] = useState<BarcodeConfig>({ profiles: [], mappings: [] });
+  const [barcode, setBarcode] = useState('');
   const [state, setState] = useState<ScaleState>('waiting');
   const [readingUsed, setReadingUsed] = useState(false);
   const [weightKg, setWeightKg] = useState<string | null>(null);
@@ -68,6 +81,8 @@ export default function PosPage() {
     setProducts([]);
     setSelectedId('');
     setCart([]);
+    setBarcodeConfig({ profiles: [], mappings: [] });
+    setBarcode('');
     setCurrencyCode('');
     setWeightKg(null);
     setState('waiting');
@@ -99,26 +114,29 @@ export default function PosPage() {
     setBusy(true);
     setMessage('');
     try {
-      const endpoint = `${apiBaseUrl.replace(/\/$/, '')}/api/v1/pos/terminals/${terminalId}/live-scale`;
-      const response = await fetch(endpoint, {
-        headers: {
-          authorization: `Bearer ${accessToken}`,
-          'x-organization-id': organizationId,
-        },
-        cache: 'no-store',
-      });
-      if (!response.ok) throw new Error(`تعذّر تحميل الأصناف (${response.status}). تحقق من الصلاحية والاتصال.`);
-      const catalog = await response.json() as Catalog;
+      const base = `${apiBaseUrl.replace(/\/$/, '')}/api/v1/pos/terminals/${terminalId}`;
+      const options = { headers: {
+        authorization: `Bearer ${accessToken}`, 'x-organization-id': organizationId,
+      }, cache: 'no-store' as const };
+      const [catalogResponse, configResponse] = await Promise.all([
+        fetch(`${base}/live-scale`, options), fetch(`${base}/scale-config`, options),
+      ]);
+      if (!catalogResponse.ok || !configResponse.ok) {
+        throw new Error(`تعذّر تحميل الأصناف أو إعدادات الباركود (${catalogResponse.status}/${configResponse.status}).`);
+      }
+      const catalog = await catalogResponse.json() as Catalog;
+      const config = await configResponse.json() as BarcodeConfig;
       if (requestId !== requestRef.current) return;
       const nextSettings = catalog.settings ?? defaultSerialScaleSettings;
       if (connected) await bridgeRef.current?.disconnect();
       setSettings(nextSettings);
       setTracking(nextSettings);
       setProducts(catalog.products);
+      setBarcodeConfig(config);
       setCurrencyCode(catalog.currencyCode);
       setSelectedId(catalog.products[0]?.id ?? '');
       setCart([]);
-      setMessage(catalog.products.length ? 'تم تحميل أصناف الكيلو وإعدادات الميزان.' :
+      setMessage(catalog.products.length ? 'تم تحميل أصناف الكيلو وإعدادات الملصقات.' :
         'لا توجد أصناف كيلو مفعّلة لهذه المؤسسة. أضفها من واجهة الإدارة البرمجية.');
     } catch (error) {
       if (requestId === requestRef.current) setMessage(friendlyError(error));
@@ -171,11 +189,24 @@ export default function PosPage() {
     }
   }
 
+  function addBarcode() {
+    const value = barcode.trim();
+    if (!value) return;
+    try {
+      const line = priceBarcodeScaleLine(value, barcodeConfig.profiles, barcodeConfig.mappings, products, cart);
+      setCart(old => [...old, line]);
+      setBarcode('');
+      setMessage(`أُضيف ${line.product.name}: ${line.quantity} كغ من ملصق الميزان.`);
+    } catch (error) {
+      setMessage(friendlyError(error));
+    }
+  }
+
   return <div className={styles.page} dir="rtl">
     <header className={styles.heading}>
       <div><span className={styles.eyebrow}>AXIOM / POINT OF SALE</span>
         <h1>نقطة البيع والميزان</h1>
-        <p>اقرأ الوزن من الميزان مباشرة، وراجع وزن العبوة وسعر الكيلو قبل إضافة الصنف.</p>
+        <p>امسح ملصق الميزان المطبوع أو اقرأ الوزن مباشرة، ثم راجع سلة البيع.</p>
       </div>
       <span className={`${styles.connection} ${connected ? styles.connected : ''}`}>
         <span className={styles.dot} />{connected ? 'الميزان متصل' : 'الميزان غير متصل'}
@@ -198,6 +229,18 @@ export default function PosPage() {
     </section>
 
     <div className={styles.columns}>
+      <section className={styles.barcodePanel} aria-label="ملصق الميزان">
+        <div className={styles.sectionTitle}><Barcode size={20} aria-hidden="true" /><h2>مسح ملصق الميزان</h2></div>
+        <p className={styles.help}>ضع المؤشر في الحقل وامسح الملصق بقارئ الباركود؛ أو أدخل الأرقام ثم اضغط Enter. الصيغة وPLU تُضبط لكل صندوق من إعدادات الميزان.</p>
+        <form className={styles.scanForm} onSubmit={e => { e.preventDefault(); addBarcode(); }}>
+          <label>باركود الملصق<input inputMode="numeric" autoComplete="off" value={barcode}
+            onChange={e => setBarcode(e.target.value)} placeholder="مثال: 20…" /></label>
+          <button className={styles.primary} type="submit" disabled={!products.length || !barcode.trim()}>
+            <Barcode size={18} aria-hidden="true" />إضافة من الملصق
+          </button>
+        </form>
+        {!barcodeConfig.profiles.length && <p className={styles.help}>لا توجد صيغة باركود مربوطة بهذا الصندوق بعد. يلزم إعداد ملف الميزان وربط رقم PLU بالصنف.</p>}
+      </section>
       <section className={styles.scalePanel} aria-label="الميزان">
         <div className={styles.sectionTitle}><Scale size={20} aria-hidden="true" /><h2>قراءة الوزن</h2></div>
         <div className={styles.scaleScreen} role="status" aria-live="polite">
@@ -243,11 +286,11 @@ export default function PosPage() {
           disabled={!connected || !selected || state !== 'stable' || readingUsed}>
           <PackagePlus size={18} aria-hidden="true" />إضافة الوزنة الثابتة
         </button>
-        <div className={styles.cartHeader}><h3>الأوزان المضافة</h3><span>{cart.length} صنف</span></div>
-        {cart.length === 0 ? <div className={styles.empty}>ضع السلعة على الميزان، وانتظر ثبات الوزن، ثم أضفها.</div> :
+        <div className={styles.cartHeader}><h3>الأصناف المضافة</h3><span>{cart.length} صنف</span></div>
+        {cart.length === 0 ? <div className={styles.empty}>امسح ملصق الميزان المطبوع لإضافة السلعة إلى المعاينة.</div> :
           <ul className={styles.lines}>{cart.map(line =>
             <li key={line.id}>
-              <div><strong>{line.product.name}</strong><span>{line.quantity} كغ × {line.unitPrice} {currencyCode} / كغ</span></div>
+              <div><strong>{line.product.name}</strong><span>{line.quantity} كغ × {line.unitPrice} {currencyCode} / كغ · {line.source === 'scale_barcode' ? 'ملصق' : 'قراءة مباشرة'}</span></div>
               <strong>{line.lineTotal} {currencyCode}</strong>
               <button type="button" aria-label={`حذف ${line.product.name} من المعاينة`} title="حذف من المعاينة"
                 onClick={() => setCart(old => old.filter(item => item.id !== line.id))}>

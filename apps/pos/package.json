@@ -6,7 +6,8 @@
   "exports": {
     "./live-scale": "./src/scale/live-scale.ts",
     "./live-cart": "./src/scale/live-cart.ts",
-    "./web-serial": "./src/scale/web-serial.ts"
+    "./web-serial": "./src/scale/web-serial.ts",
+    "./barcode": "./src/scale/barcode-cart.ts"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
