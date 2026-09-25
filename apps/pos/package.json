@@ -2,12 +2,20 @@
   "name": "@axiom/pos",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "lint": "tsc --noEmit",
     "typecheck": "tsc --noEmit",
-    "test": "echo no-pos-tests"
+    "test": "vitest run"
   },
-  "dependencies": { "idb": "latest", "socket.io-client": "latest" },
-  "devDependencies": { "typescript": "^6.0.0" }
+  "dependencies": {
+    "decimal.js": "latest",
+    "idb": "latest",
+    "socket.io-client": "latest"
+  },
+  "devDependencies": {
+    "typescript": "^6.0.0",
+    "vitest": "latest"
+  }
 }
