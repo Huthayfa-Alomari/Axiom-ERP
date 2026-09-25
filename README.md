@@ -13,7 +13,8 @@ Axiom ERP is a multi-tenant enterprise ERP monorepo centered on an immutable dou
 - Fixed assets and depreciation
 - HR / payroll
 - Manufacturing / BOM / WIP
-- Offline-first POS synchronization
+- Offline-first POS client and sync contract (server posting pending)
+- POS scale-label barcodes and a direct Web Serial weighing preview (`/pos`)
 - Financial reporting and cross-module reconciliation
 - Pre-posting risk/anomaly service
 - Next.js executive/workspace UI
@@ -42,6 +43,8 @@ pnpm --filter @axiom/web dev
 API: `http://localhost:3001/api/v1`
 
 Web: `http://localhost:3000`
+
+Direct scale setup and current checkout limitations: [docs/POS_LIVE_SCALE.md](docs/POS_LIVE_SCALE.md).
 
 AI risk service: `http://localhost:8000`
 

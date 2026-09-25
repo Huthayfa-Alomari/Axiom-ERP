@@ -5,6 +5,7 @@ const links = [
   ['/sales', 'Sales'],
   ['/purchasing', 'Purchasing'],
   ['/inventory', 'Inventory'],
+  ['/pos', 'POS · الميزان'],
   ['/treasury', 'Treasury'],
   ['/fixed-assets', 'Fixed Assets'],
   ['/payroll', 'Payroll'],

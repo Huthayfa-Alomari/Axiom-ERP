@@ -3,11 +3,16 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "exports": {
+    "./live-scale": "./src/scale/live-scale.ts",
+    "./live-cart": "./src/scale/live-cart.ts",
+    "./web-serial": "./src/scale/web-serial.ts"
+  },
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "lint": "tsc --noEmit",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run src"
   },
   "dependencies": {
     "decimal.js": "latest",

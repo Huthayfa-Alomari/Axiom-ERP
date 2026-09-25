@@ -11,6 +11,7 @@
     "test": "echo no-web-tests"
   },
   "dependencies": {
+    "@axiom/pos": "workspace:*",
     "lucide-react": "latest",
     "next": "latest",
     "react": "latest",
