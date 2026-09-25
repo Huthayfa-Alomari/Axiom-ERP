@@ -48,7 +48,7 @@ CREATE TABLE payroll.employee_component_assignments (
 CREATE OR REPLACE FUNCTION payroll.prevent_component_overlap()
 RETURNS trigger
 LANGUAGE plpgsql
-AS $
+AS $$
 BEGIN
   IF EXISTS(
     SELECT 1
@@ -71,7 +71,7 @@ BEGIN
   END IF;
   RETURN NEW;
 END
-$;
+$$;
 
 CREATE TRIGGER payroll_component_overlap_guard
 BEFORE INSERT OR UPDATE ON payroll.employee_component_assignments
