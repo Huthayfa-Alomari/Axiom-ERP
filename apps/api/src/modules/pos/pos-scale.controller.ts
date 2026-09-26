@@ -36,7 +36,7 @@ const decimalSchema = z.string().regex(/^(0|[1-9]\d*)(\.\d{1,8})?$/);
 const createProfileSchema = z.object({
   code: z.string().min(1).max(64).regex(/^[A-Za-z0-9_-]+$/),
   name: z.string().min(1).max(160),
-  preset: z.enum(['EAN13_WEIGHT_20', 'EAN13_PRICE_20']).optional(),
+  preset: z.enum(['EAN13_WEIGHT_20', 'EAN13_PRICE_20', 'EAN13_WEIGHT_2_PLU6']).optional(),
   acceptedPrefixes: z.array(z.string().regex(/^\d+$/)).min(1).default(['20']),
   totalLength: z.number().int().min(8).max(32).default(13),
   pluStart: z.number().int().min(0).default(2),
@@ -165,15 +165,19 @@ export class PosScaleController {
     const presetKind =
       body.data.preset === 'EAN13_PRICE_20'
         ? 'price'
-        : body.data.preset === 'EAN13_WEIGHT_20'
+        : body.data.preset === 'EAN13_WEIGHT_20' || body.data.preset === 'EAN13_WEIGHT_2_PLU6'
           ? 'weight'
           : undefined;
 
     const measureKind = body.data.measureKind ?? presetKind ?? 'weight';
     const measureDecimals =
       body.data.measureDecimals ?? (measureKind === 'weight' ? 3 : 2);
+    const photoPreset = body.data.preset === 'EAN13_WEIGHT_2_PLU6';
+    const acceptedPrefixes = photoPreset ? ['2'] : body.data.acceptedPrefixes;
+    const pluStart = photoPreset ? 1 : body.data.pluStart;
+    const pluLength = photoPreset ? 6 : body.data.pluLength;
 
-    if (body.data.pluStart + body.data.pluLength > body.data.totalLength) {
+    if (pluStart + pluLength > body.data.totalLength) {
       throw new BadRequestException('PLU segment exceeds barcode length.');
     }
     if (body.data.measureStart + body.data.measureLength > body.data.totalLength) {
@@ -205,9 +209,9 @@ export class PosScaleController {
             body.data.code,
             body.data.name,
             body.data.totalLength,
-            body.data.acceptedPrefixes,
-            body.data.pluStart,
-            body.data.pluLength,
+            acceptedPrefixes,
+            pluStart,
+            pluLength,
             body.data.measureStart,
             body.data.measureLength,
             measureKind,

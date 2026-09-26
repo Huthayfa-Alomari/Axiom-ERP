@@ -14,6 +14,15 @@ const product = { id: 'x', sku: 'APPLE', name: 'Apples', salePrice: '2.5000', un
 const label = appendEan13CheckDigit('201234500125');
 
 describe('printed scale labels in the POS cart', () => {
+  it('matches the photographed 0.200 kg label and 1.000 JOD total', () => {
+    const labelProfile = { ...profile, acceptedPrefixes: ['2'], pluStart: 1, pluLength: 6 };
+    const labelMapping = { ...mapping, plu: '000001', tareWeight: '0' };
+    const labelProduct = { ...product, salePrice: '5.000' };
+    const line = priceBarcodeScaleLine('2000001002001', [labelProfile], [labelMapping], [labelProduct], []);
+    expect(line.quantity).toBe('0.2');
+    expect(line.lineTotal).toBe('1.0000');
+  });
+
   it('prices the mapped net weight with exact decimals', () => {
     const line = priceBarcodeScaleLine(label, [profile], [mapping], [product], []);
     expect(line.quantity).toBe('0.1');
