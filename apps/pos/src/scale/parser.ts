@@ -1,6 +1,6 @@
 import Decimal from 'decimal.js';
-import { isValidEan13 } from './ean13.js';
-import { scaledIntegerToDecimal } from './decimal.js';
+import { isValidEan13 } from './ean13';
+import { scaledIntegerToDecimal } from './decimal';
 import type {
   LocalScaleMapping,
   LocalScaleProfile,

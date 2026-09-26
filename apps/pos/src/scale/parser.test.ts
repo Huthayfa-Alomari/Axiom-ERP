@@ -29,6 +29,16 @@ const mapping: LocalScaleMapping = {
 };
 
 describe('electronic scale barcode parser', () => {
+  it('decodes the photographed 2 + six-digit PLU + gram weight label', () => {
+    const photographedProfile = {
+      ...profile, acceptedPrefixes: ['2'], pluStart: 1, pluLength: 6,
+    };
+    const photographedMapping = { ...mapping, plu: '000001', tareWeight: '0' };
+    const parsed = parseScaleBarcode('2000001002001', [photographedProfile], [photographedMapping]);
+    expect(parsed?.metadata.plu).toBe('000001');
+    expect(parsed?.metadata.netWeight).toBe('0.2');
+  });
+
   it('validates EAN-13 and extracts net weight', () => {
     const barcode = appendEan13CheckDigit('201234500125');
     expect(isValidEan13(barcode)).toBe(true);

@@ -2,20 +2,14 @@ import {
   BadRequestException,
   Body,
   Controller,
-  ForbiddenException,
   Get,
   Headers,
   Param,
   Post,
   Req,
 } from '@nestjs/common';
-import type { PoolClient } from 'pg';
 import { z } from 'zod';
-import { DatabaseService } from '../../infrastructure/database/database.service.js';
-
-interface AuthenticatedRequest {
-  principal?: { id: string; email: string | null };
-}
+import { PosTenantService, uuidSchema, type PosRequest } from './pos-tenant.service.js';
 
 interface ScaleConfigRow {
   priority: number;
@@ -37,13 +31,12 @@ interface ScaleConfigRow {
   tare_weight: string;
 }
 
-const uuidSchema = z.string().uuid();
 const decimalSchema = z.string().regex(/^(0|[1-9]\d*)(\.\d{1,8})?$/);
 
 const createProfileSchema = z.object({
   code: z.string().min(1).max(64).regex(/^[A-Za-z0-9_-]+$/),
   name: z.string().min(1).max(160),
-  preset: z.enum(['EAN13_WEIGHT_20', 'EAN13_PRICE_20']).optional(),
+  preset: z.enum(['EAN13_WEIGHT_20', 'EAN13_PRICE_20', 'EAN13_WEIGHT_2_PLU6']).optional(),
   acceptedPrefixes: z.array(z.string().regex(/^\d+$/)).min(1).default(['20']),
   totalLength: z.number().int().min(8).max(32).default(13),
   pluStart: z.number().int().min(0).default(2),
@@ -64,74 +57,20 @@ const mappingSchema = z.object({
 
 @Controller('pos')
 export class PosScaleController {
-  constructor(private readonly database: DatabaseService) {}
-
-  private async withTenant<T>(
-    organizationIdRaw: string | undefined,
-    request: AuthenticatedRequest,
-    permission: string,
-    work: (client: PoolClient, organizationId: string, userId: string) => Promise<T>,
-  ): Promise<T> {
-    const organizationId = uuidSchema.safeParse(organizationIdRaw);
-    if (!organizationId.success) {
-      throw new BadRequestException('Valid x-organization-id header is required.');
-    }
-
-    const userId = request.principal?.id;
-    if (!userId || !uuidSchema.safeParse(userId).success) {
-      throw new ForbiddenException('Authenticated principal required.');
-    }
-
-    const client = await this.database.pool.connect();
-
-    try {
-      await client.query('BEGIN');
-      await client.query(
-        "SELECT set_config('app.organization_id',$1,true), set_config('app.user_id',$2,true)",
-        [organizationId.data, userId],
-      );
-
-      const access = await client.query<{ member: boolean; permitted: boolean }>(
-        `SELECT
-           EXISTS(
-             SELECT 1 FROM app.memberships
-             WHERE organization_id=$1 AND user_id=$2 AND is_active
-           ) AS member,
-           app.user_has_permission($3,$1) AS permitted`,
-        [organizationId.data, userId, permission],
-      );
-
-      if (!access.rows[0]?.member) {
-        throw new ForbiddenException('User is not an active organization member.');
-      }
-
-      if (!access.rows[0]?.permitted) {
-        throw new ForbiddenException(`Permission required: ${permission}`);
-      }
-
-      const result = await work(client, organizationId.data, userId);
-      await client.query('COMMIT');
-      return result;
-    } catch (error) {
-      await client.query('ROLLBACK');
-      throw error;
-    } finally {
-      client.release();
-    }
-  }
+  constructor(private readonly tenant: PosTenantService) {}
 
   @Get('terminals/:terminalId/scale-config')
   async getScaleConfiguration(
     @Param('terminalId') terminalIdRaw: string,
     @Headers('x-organization-id') organizationIdRaw: string | undefined,
-    @Req() request: AuthenticatedRequest,
+    @Req() request: PosRequest,
   ) {
     const terminalId = uuidSchema.safeParse(terminalIdRaw);
     if (!terminalId.success) {
       throw new BadRequestException('Valid terminal ID is required.');
     }
 
-    return this.withTenant(
+    return this.tenant.run(
       organizationIdRaw,
       request,
       'pos.scale.read',
@@ -213,7 +152,7 @@ export class PosScaleController {
   async createScaleProfile(
     @Param('terminalId') terminalIdRaw: string,
     @Headers('x-organization-id') organizationIdRaw: string | undefined,
-    @Req() request: AuthenticatedRequest,
+    @Req() request: PosRequest,
     @Body() rawBody: unknown,
   ) {
     const terminalId = uuidSchema.safeParse(terminalIdRaw);
@@ -226,22 +165,26 @@ export class PosScaleController {
     const presetKind =
       body.data.preset === 'EAN13_PRICE_20'
         ? 'price'
-        : body.data.preset === 'EAN13_WEIGHT_20'
+        : body.data.preset === 'EAN13_WEIGHT_20' || body.data.preset === 'EAN13_WEIGHT_2_PLU6'
           ? 'weight'
           : undefined;
 
     const measureKind = body.data.measureKind ?? presetKind ?? 'weight';
     const measureDecimals =
       body.data.measureDecimals ?? (measureKind === 'weight' ? 3 : 2);
+    const photoPreset = body.data.preset === 'EAN13_WEIGHT_2_PLU6';
+    const acceptedPrefixes = photoPreset ? ['2'] : body.data.acceptedPrefixes;
+    const pluStart = photoPreset ? 1 : body.data.pluStart;
+    const pluLength = photoPreset ? 6 : body.data.pluLength;
 
-    if (body.data.pluStart + body.data.pluLength > body.data.totalLength) {
+    if (pluStart + pluLength > body.data.totalLength) {
       throw new BadRequestException('PLU segment exceeds barcode length.');
     }
     if (body.data.measureStart + body.data.measureLength > body.data.totalLength) {
       throw new BadRequestException('Measure segment exceeds barcode length.');
     }
 
-    return this.withTenant(
+    return this.tenant.run(
       organizationIdRaw,
       request,
       'pos.scale.configure',
@@ -266,9 +209,9 @@ export class PosScaleController {
             body.data.code,
             body.data.name,
             body.data.totalLength,
-            body.data.acceptedPrefixes,
-            body.data.pluStart,
-            body.data.pluLength,
+            acceptedPrefixes,
+            pluStart,
+            pluLength,
             body.data.measureStart,
             body.data.measureLength,
             measureKind,
@@ -301,7 +244,7 @@ export class PosScaleController {
   async upsertPluMapping(
     @Param('profileId') profileIdRaw: string,
     @Headers('x-organization-id') organizationIdRaw: string | undefined,
-    @Req() request: AuthenticatedRequest,
+    @Req() request: PosRequest,
     @Body() rawBody: unknown,
   ) {
     const profileId = uuidSchema.safeParse(profileIdRaw);
@@ -311,7 +254,7 @@ export class PosScaleController {
       throw new BadRequestException(body.success ? 'Invalid profile ID.' : body.error.flatten());
     }
 
-    return this.withTenant(
+    return this.tenant.run(
       organizationIdRaw,
       request,
       'pos.scale.configure',

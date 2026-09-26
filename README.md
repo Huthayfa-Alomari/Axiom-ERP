@@ -13,7 +13,8 @@ Axiom ERP is a multi-tenant enterprise ERP monorepo centered on an immutable dou
 - Fixed assets and depreciation
 - HR / payroll
 - Manufacturing / BOM / WIP
-- Offline-first POS synchronization
+- Offline-first POS client and sync contract (server posting pending)
+- POS scale-label barcodes and a direct Web Serial weighing preview (`/pos`)
 - Financial reporting and cross-module reconciliation
 - Pre-posting risk/anomaly service
 - Next.js executive/workspace UI
@@ -30,6 +31,10 @@ Axiom ERP is a multi-tenant enterprise ERP monorepo centered on an immutable dou
 
 ## Quick start
 
+### Open the POS label demo on Windows
+
+Download the project branch as a ZIP, extract it, install Node.js with npm if needed, then double-click `START_AXIOM_DEMO.cmd`. The first run installs dependencies and opens `http://localhost:3000/pos`. Click **افتح تجربة الملصق فورًا**, then **إضافة من الملصق** to try the supplied `2000001002001` label. The demo runs locally without PostgreSQL or login; it previews barcode parsing and pricing only. Close the command window to stop it. Real tenant data and checkout require the API, PostgreSQL migrations, membership/JWT setup, and a server-side posting flow.
+
 ```bash
 cp .env.example .env
 pnpm install
@@ -42,6 +47,8 @@ pnpm --filter @axiom/web dev
 API: `http://localhost:3001/api/v1`
 
 Web: `http://localhost:3000`
+
+Direct scale setup and current checkout limitations: [docs/POS_LIVE_SCALE.md](docs/POS_LIVE_SCALE.md).
 
 AI risk service: `http://localhost:8000`
 
