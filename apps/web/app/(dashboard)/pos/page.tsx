@@ -67,6 +67,7 @@ export default function PosPage() {
   const [connected, setConnected] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
+  const [demo, setDemo] = useState(false);
   const trackerRef = useRef(new ScaleStabilityTracker({ defaultUnit: 'kg' }));
   const bridgeRef = useRef<WebSerialScale | null>(null);
   const requestRef = useRef(0);
@@ -87,6 +88,33 @@ export default function PosPage() {
     setWeightKg(null);
     setState('waiting');
     setReadingUsed(false);
+    setDemo(false);
+  }
+
+  function loadDemo() {
+    clearSession();
+    const product: ProductRow = {
+      id: 'demo-product', sku: '000001', name: 'صنف العينة (تجربة ملصق الميزان)',
+      salePrice: '5.000', unitCode: 'KG', tareWeight: '0', availableQuantity: '—',
+    };
+    setProducts([product]);
+    setSelectedId(product.id);
+    setCurrencyCode('JOD');
+    setBarcodeConfig({
+      profiles: [{
+        id: 'demo-profile', code: 'EAN13_WEIGHT_2_PLU6', name: 'عينة الملصق',
+        priority: 1, symbology: 'EAN13', totalLength: 13, acceptedPrefixes: ['2'],
+        pluStart: 1, pluLength: 6, measureStart: 7, measureLength: 5,
+        measureKind: 'weight', measureDecimals: 3, checksumMode: 'ean13',
+      }],
+      mappings: [{
+        id: 'demo-mapping', profileId: 'demo-profile', plu: '000001',
+        productId: product.id, tareWeight: '0',
+      }],
+    });
+    setBarcode('2000001002001');
+    setDemo(true);
+    setMessage('وضع التجربة: اضغط «إضافة من الملصق» لتجربة الصورة التي أرسلتها. لا توجد بيانات بيع حقيقية.');
   }
 
   useEffect(() => {
@@ -132,6 +160,7 @@ export default function PosPage() {
       setSettings(nextSettings);
       setTracking(nextSettings);
       setProducts(catalog.products);
+      setDemo(false);
       setBarcodeConfig(config);
       setCurrencyCode(catalog.currencyCode);
       setSelectedId(catalog.products[0]?.id ?? '');
@@ -215,6 +244,8 @@ export default function PosPage() {
 
     <section className={styles.setup} aria-label="ربط مؤسسة ونقطة بيع">
       <div className={styles.sectionTitle}><Cable size={19} aria-hidden="true" /><h2>إعداد نقطة البيع</h2></div>
+      <button type="button" className={styles.primary} onClick={loadDemo}>افتح تجربة الملصق فورًا</button>
+      {demo && <p className={styles.demoNotice}>وضع تجريبي محلي — الأصناف والمخزون والفاتورة غير متصلة بقاعدة البيانات.</p>}
       <p className={styles.help}>المفتاح يبقى داخل هذه الصفحة فقط. يحتاج الحساب صلاحية <code>pos.scale.read</code>.</p>
       <div className={styles.setupGrid}>
         <label>عنوان API<input value={apiBaseUrl} onChange={e => { clearSession(); setApiBaseUrl(e.target.value); }} placeholder="http://localhost:3001" /></label>

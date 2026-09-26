@@ -8,6 +8,7 @@
 .connected .dot{background:#17966b}
 .setup,.barcodePanel,.scalePanel,.cartPanel{background:#fff;border:1px solid var(--line);box-shadow:0 12px 30px rgba(14,37,56,.035);border-radius:18px;padding:24px}
 .setup{margin-bottom:18px}
+.demoNotice{color:#075b80;background:#eaf5fa;border-radius:9px;padding:10px 12px;margin:12px 0 0;font-weight:700}
 .barcodePanel{margin-bottom:18px;display:grid;gap:12px}
 .barcodePanel .sectionTitle{margin-bottom:0}
 .scanForm{display:flex;align-items:end;gap:12px}
