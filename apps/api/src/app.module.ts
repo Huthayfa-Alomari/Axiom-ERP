@@ -5,6 +5,7 @@ import { JwtAuthGuard } from './common/auth/jwt-auth.guard.js';
 import { FixedAssetsModule } from './modules/fixed-assets/fixed-assets.module.js';
 import { HealthModule } from './modules/health/health.module.js';
 import { InventoryModule } from './modules/inventory/inventory.module.js';
+import { IntegrationsModule } from './modules/integrations/integrations.module.js';
 import { PayrollModule } from './modules/payroll/payroll.module.js';
 import { PosModule } from './modules/pos/pos.module.js';
 import { ReportingModule } from './modules/reporting/reporting.module.js';
@@ -17,6 +18,7 @@ import { WorkspaceModule } from './modules/workspace/workspace.module.js';
     FixedAssetsModule,
     HealthModule,
     InventoryModule,
+    IntegrationsModule,
     PayrollModule,
     PosModule,
     ReportingModule,
