@@ -13,7 +13,6 @@ const isoTimestamp = z.string().datetime({ offset: true });
 export const integrationSourceSchema = z.enum(['altayebat', 'axiom', 'external']);
 
 export const integrationTenantSchema = z.object({
-  source: integrationSourceSchema,
   externalTenantId: nonEmptyId,
   externalBranchId: nonEmptyId.optional(),
 }).strict();
@@ -83,7 +82,9 @@ export function integrationEventDedupeKey(event: Pick<IntegrationEvent, 'source'
   return [
     event.source,
     encodeURIComponent(event.tenant.externalTenantId),
-    encodeURIComponent(event.tenant.externalBranchId ?? '_'),
+    event.tenant.externalBranchId === undefined
+      ? 'no-branch'
+      : 'branch=' + encodeURIComponent(event.tenant.externalBranchId),
     event.eventId,
   ].join(':');
 }
