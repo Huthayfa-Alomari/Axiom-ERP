@@ -1,4 +1,5 @@
 import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import { randomUUID } from 'node:crypto';
 import type { PoolClient } from 'pg';
 import { DatabaseService } from '../../infrastructure/database/database.service.js';
 import { integrationEventSchema, type IntegrationEvent } from './integration-event.schema.js';
@@ -126,6 +127,7 @@ export class IntegrationInboxWorker implements OnModuleInit, OnModuleDestroy {
         return false;
       }
 
+      await client.query("SELECT set_config('app.organization_id',$1,true)", [inbox.organization_id]);
       await client.query('SAVEPOINT integration_business_effect');
       try {
         const event = integrationEventSchema.parse(inbox.raw_event);
@@ -322,16 +324,18 @@ export class IntegrationInboxWorker implements OnModuleInit, OnModuleDestroy {
        VALUES ($1,$2,$3,$4,'reserved')`,
       [mapping.id, mapping.organization_id, externalOrderId, salesOrder.id],
     );
+    const outboundEventId = randomUUID();
     await client.query(
       `INSERT INTO integration.outbox_events
-         (organization_id, event_type, aggregate_type, aggregate_id, payload)
-       VALUES ($1,'commerce.order.reserved','sales_order',$2,$3::jsonb)`,
+         (organization_id, event_id, event_type, aggregate_type, aggregate_id, payload)
+       VALUES ($1,$2,'commerce.order.reserved','sales_order',$3,$4::jsonb)`,
       [
         mapping.organization_id,
+        outboundEventId,
         salesOrder.id,
         JSON.stringify({
           schemaVersion: 1,
-          eventId: event.eventId,
+          eventId: outboundEventId,
           type: 'commerce.order.reserved',
           occurredAt: new Date().toISOString(),
           source: 'axiom',
@@ -407,19 +411,26 @@ export class IntegrationInboxWorker implements OnModuleInit, OnModuleDestroy {
         WHERE tenant_mapping_id=$1 AND external_order_id=$2`,
       [mapping.id, externalOrderId],
     );
+    const outboundEventId = randomUUID();
     await client.query(
       `INSERT INTO integration.outbox_events
-         (organization_id, event_type, aggregate_type, aggregate_id, payload)
-       VALUES ($1,'commerce.order.cancelled','sales_order',$2,$3::jsonb)`,
+         (organization_id, event_id, event_type, aggregate_type, aggregate_id, payload)
+       VALUES ($1,$2,'commerce.order.cancelled','sales_order',$3,$4::jsonb)`,
       [
         mapping.organization_id,
+        outboundEventId,
         link.sales_order_id,
         JSON.stringify({
           schemaVersion: 1,
-          eventId: event.eventId,
+          eventId: outboundEventId,
           type: 'commerce.order.cancelled',
           occurredAt: new Date().toISOString(),
           source: 'axiom',
+          tenant: {
+            externalTenantId: event.tenant.externalTenantId,
+            externalBranchId: event.tenant.externalBranchId,
+          },
+          correlationId: event.correlationId,
           payload: { externalOrderId, salesOrderId: link.sales_order_id, status: 'cancelled' },
         }),
       ],
