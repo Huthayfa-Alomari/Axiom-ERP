@@ -74,12 +74,16 @@ export const integrationEventSchema = z.discriminatedUnion('type', [
 export type IntegrationEvent = z.infer<typeof integrationEventSchema>;
 export type CommerceOrderCreatedPayload = z.infer<typeof commerceOrderCreatedPayloadSchema>;
 
-/** Stable key to use alongside the unique event ID in persistence. */
+/**
+ * Canonical, collision-resistant composite key for inbox deduplication.
+ * Each free-form identifier is URI-encoded so delimiter characters in an
+ * external tenant or branch ID cannot produce ambiguous composite keys.
+ */
 export function integrationEventDedupeKey(event: Pick<IntegrationEvent, 'source' | 'tenant' | 'eventId'>): string {
   return [
     event.source,
-    event.tenant.externalTenantId,
-    event.tenant.externalBranchId ?? '_',
+    encodeURIComponent(event.tenant.externalTenantId),
+    encodeURIComponent(event.tenant.externalBranchId ?? '_'),
     event.eventId,
   ].join(':');
 }
