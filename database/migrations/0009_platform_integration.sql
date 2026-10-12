@@ -10,10 +10,16 @@ CREATE TABLE integration.tenant_mappings (
   external_tenant_id varchar(200) NOT NULL CHECK (length(btrim(external_tenant_id)) > 0),
   external_branch_id varchar(200) CHECK (external_branch_id IS NULL OR length(btrim(external_branch_id)) > 0),
   organization_id uuid NOT NULL REFERENCES app.organizations(id) ON DELETE RESTRICT,
+  warehouse_id uuid NOT NULL,
+  default_customer_id uuid,
   is_active boolean NOT NULL DEFAULT true,
   created_at timestamptz NOT NULL DEFAULT clock_timestamp(),
   updated_at timestamptz NOT NULL DEFAULT clock_timestamp(),
-  UNIQUE (id, organization_id)
+  UNIQUE (id, organization_id),
+  FOREIGN KEY (organization_id, warehouse_id)
+    REFERENCES inventory.warehouses(organization_id, id) ON DELETE RESTRICT,
+  FOREIGN KEY (organization_id, default_customer_id)
+    REFERENCES crm.customers(organization_id, id) ON DELETE RESTRICT
 );
 
 CREATE UNIQUE INDEX tenant_mappings_external_identity_uq
@@ -26,6 +32,59 @@ ON integration.tenant_mappings (
 CREATE INDEX tenant_mappings_organization_idx
 ON integration.tenant_mappings (organization_id, source)
 WHERE is_active;
+
+CREATE TABLE integration.product_mappings (
+  tenant_mapping_id uuid NOT NULL,
+  organization_id uuid NOT NULL,
+  external_product_id varchar(200) NOT NULL CHECK (length(btrim(external_product_id)) > 0),
+  product_id uuid NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+  PRIMARY KEY (tenant_mapping_id, external_product_id),
+  FOREIGN KEY (tenant_mapping_id, organization_id)
+    REFERENCES integration.tenant_mappings(id, organization_id) ON DELETE RESTRICT,
+  FOREIGN KEY (organization_id, product_id)
+    REFERENCES inventory.products(organization_id, id) ON DELETE RESTRICT
+);
+
+CREATE INDEX product_mappings_product_idx
+ON integration.product_mappings (organization_id, product_id);
+
+CREATE TABLE integration.customer_mappings (
+  tenant_mapping_id uuid NOT NULL,
+  organization_id uuid NOT NULL,
+  external_customer_id varchar(200) NOT NULL CHECK (length(btrim(external_customer_id)) > 0),
+  customer_id uuid NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+  PRIMARY KEY (tenant_mapping_id, external_customer_id),
+  FOREIGN KEY (tenant_mapping_id, organization_id)
+    REFERENCES integration.tenant_mappings(id, organization_id) ON DELETE RESTRICT,
+  FOREIGN KEY (organization_id, customer_id)
+    REFERENCES crm.customers(organization_id, id) ON DELETE RESTRICT
+);
+
+CREATE INDEX customer_mappings_customer_idx
+ON integration.customer_mappings (organization_id, customer_id);
+
+CREATE TABLE integration.external_order_links (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_mapping_id uuid NOT NULL,
+  organization_id uuid NOT NULL,
+  external_order_id varchar(200) NOT NULL CHECK (length(btrim(external_order_id)) > 0),
+  sales_order_id uuid NOT NULL,
+  status varchar(20) NOT NULL DEFAULT 'reserved'
+    CHECK (status IN ('reserved','cancelled','completed')),
+  created_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+  updated_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+  UNIQUE (tenant_mapping_id, external_order_id),
+  UNIQUE (organization_id, sales_order_id),
+  FOREIGN KEY (tenant_mapping_id, organization_id)
+    REFERENCES integration.tenant_mappings(id, organization_id) ON DELETE RESTRICT,
+  FOREIGN KEY (organization_id, sales_order_id)
+    REFERENCES sales.sales_orders(organization_id, id) ON DELETE RESTRICT
+);
+
+CREATE INDEX external_order_links_org_idx
+ON integration.external_order_links (organization_id, created_at DESC);
 
 -- Inbox is the durable idempotency boundary. Persisting an event is not the same
 -- as applying its business effect; a separate worker must claim and process it.
