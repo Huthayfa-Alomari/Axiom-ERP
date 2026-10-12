@@ -14,7 +14,7 @@ interface MappingRow {
 interface InboxRow {
   id: string;
   status: string;
-  raw_event: unknown;
+  raw_event?: unknown;
 }
 
 export interface AcceptEventResult {
@@ -102,7 +102,6 @@ export class IntegrationInboxService {
         throw new ConflictException('Event idempotency conflict; retry safely.');
       }
 
-      const existingJson = JSON.stringify(existing.raw_event);
       const incomingJson = JSON.stringify(event);
       // PostgreSQL JSONB normalizes object-key order; compare JSONB in SQL rather
       // than relying on JavaScript property order.
