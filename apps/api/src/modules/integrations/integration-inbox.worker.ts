@@ -277,15 +277,15 @@ export class IntegrationInboxWorker implements OnModuleInit, OnModuleDestroy {
          )`,
         [mapping.organization_id, product.productId, mapping.warehouse_id],
       );
-      const stock = await client.query<{ available: string }>(
+      const stock = await client.query<{ enough: boolean }>(
         `SELECT COALESCE((
            SELECT available_quantity
              FROM inventory.available_stock
             WHERE organization_id=$1 AND product_id=$2 AND warehouse_id=$3
-         ),0)::text AS available`,
-        [mapping.organization_id, product.productId, mapping.warehouse_id],
+         ),0) >= $4::numeric AS enough`,
+        [mapping.organization_id, product.productId, mapping.warehouse_id, String(product.quantity)],
       );
-      if (Number(stock.rows[0]?.available ?? 0) < product.quantity) {
+      if (!stock.rows[0]?.enough) {
         throw new IntegrationProcessingError('INSUFFICIENT_STOCK');
       }
 
