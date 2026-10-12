@@ -1,37 +1,46 @@
-# Integration event contract (v1)
+# Integration event contract and inbox (v1)
 
-This contract is the first code-level boundary between commerce clients (initially Altayebat) and Axiom. It is deliberately limited to payload validation; it is **not** a running integration endpoint.
+This implementation adds a versioned event contract and an authenticated event-intake endpoint. It persists events for later processing; it does **not** post orders to inventory or accounting.
 
-## Event envelope
+## API
 
-Every event carries:
-- `schemaVersion`: currently `1`
-- `eventId`: producer-generated UUID, reused on retries
-- `type`: a supported event name
-- `occurredAt`: ISO-8601 timestamp with an explicit offset
-- `source`: producer system
-- `tenant`: producer tenant and optional branch identifiers
-- `correlationId`: optional workflow trace ID
-- `payload`: event-specific data
+`POST /api/v1/integrations/events`
 
-## Implemented event payloads
+Headers:
+- `Authorization: Bearer <source-specific-token>`
+- `Content-Type: application/json`
 
-### `commerce.order.created`
-Contains external order ID, currency, and line items. Line quantity must be positive, unit price is a non-negative integer in the currency's minor unit, and line currency must match order currency. For JOD, producers must agree on the minor-unit convention before money is mapped into Axiom; this schema intentionally does not calculate totals.
+Configure `INTEGRATION_SOURCE_TOKENS_JSON` on the server as a JSON object keyed by producer source. Each token must be a distinct random secret of at least 32 characters. Example shape only:
+`{"altayebat":"<replace-with-a-long-random-secret>"}`
 
-### `commerce.order.cancelled`
-Contains external order ID and an optional reason. This event does not itself reverse inventory or accounting postings.
+The token source is selected from the event's `source` field. Keep secrets in a deployment secret manager, rotate them, and never expose them to browser/mobile clients. Use TLS, rate limiting, and monitoring.
 
-## Security and processing requirements before enabling traffic
+## Tenant mapping
 
-1. Authenticate service-to-service callers (for example, rotated credentials or signed requests); do not treat a tenant ID supplied in a payload/header as authorization.
-2. Resolve producer tenant and branch IDs through a server-controlled mapping to an Axiom organization/branch.
-3. Persist an inbox record with a unique producer + tenant + event ID constraint in the same transaction as the business effect.
-4. Return the prior outcome for a duplicate event; never repeat inventory posting or journal creation.
-5. Use an outbox for outbound events and retry with backoff.
-6. Add cross-tenant, replay, malformed-signature, duplicate-delivery, and rollback tests.
-7. Do not connect the Altayebat client directly to Axiom's database.
+The endpoint resolves the producer identity using `integration.tenant_mappings`:
+- `source`
+- `external_tenant_id`
+- optional `external_branch_id`
+- `organization_id` (the Axiom organization)
 
-## Not implemented here
+Provision mappings only through a trusted administrative procedure. The producer cannot choose an Axiom organization by sending an organization ID in its event. Missing or inactive mappings are rejected.
 
-No endpoint, authentication scheme, tenant mapping table, inbox/outbox persistence, stock reservation, inventory posting, accounting journal creation, or deployment is implemented by this contract commit. These must be delivered and tested separately before production use.
+## Inbox and idempotency
+
+Accepted events are persisted to `integration.inbox_events` with status `received`. A unique key scopes each event UUID to producer + external tenant + branch. An identical retry returns the prior inbox ID and status. Reusing the same event UUID with a different body returns a conflict.
+
+This is idempotent **intake only**. No worker currently processes these records, and no inventory or accounting effect is applied by this endpoint. A downstream worker must claim records transactionally and make each business effect idempotent before marking the inbox record processed.
+
+## Outbox
+
+The migration creates `integration.outbox_events` as the persistence foundation for reliable outbound events. No publisher/worker is implemented yet.
+
+## Deployment and safety gates
+
+- Apply migration `0009_platform_integration.sql` to a disposable/staging database first; this change has not run any migration.
+- Ensure the API database role has only the required privileges on the `integration` tables. Do not grant direct access to browser/mobile roles.
+- Configure separate random tokens for each source and rotate them through the deployment secret manager.
+- Provision tenant mappings through a trusted operator process; no public mapping-management endpoint exists.
+- Test clean migration, duplicate delivery, conflicting replay, cross-tenant mapping, concurrent inserts, rollback and recovery.
+- Do not connect the Altayebat client directly to Axiom's database.
+- No production database, credentials, deployment, or live migration was changed by this PR.
