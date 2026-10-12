@@ -104,6 +104,7 @@ CREATE TABLE integration.inbox_events (
     CHECK (status IN ('received','processing','processed','failed')),
   attempt_count integer NOT NULL DEFAULT 0 CHECK (attempt_count >= 0),
   received_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+  next_attempt_at timestamptz NOT NULL DEFAULT clock_timestamp(),
   processed_at timestamptz,
   last_error_code varchar(120),
   result jsonb,
@@ -122,7 +123,7 @@ ON integration.inbox_events (
 );
 
 CREATE INDEX inbox_pending_processing_idx
-ON integration.inbox_events (received_at, id)
+ON integration.inbox_events (next_attempt_at, received_at, id)
 WHERE status IN ('received','failed');
 
 CREATE INDEX inbox_org_recent_idx
