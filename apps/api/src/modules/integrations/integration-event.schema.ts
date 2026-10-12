@@ -21,7 +21,7 @@ export const commerceOrderLineSchema = z.object({
   externalProductId: nonEmptyId,
   sku: nonEmptyId.optional(),
   quantity: z.number().finite().positive(),
-  unitPriceMinor: z.number().int().nonnegative(),
+  unitPriceMinor: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER),
   currency: z.string().regex(/^[A-Z]{3}$/),
 }).strict();
 
