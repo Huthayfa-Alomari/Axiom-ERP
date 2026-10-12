@@ -11,7 +11,6 @@ const validOrderEvent = {
   occurredAt: '2026-10-12T12:00:00Z',
   source: 'altayebat',
   tenant: {
-    source: 'altayebat',
     externalTenantId: 'store-001',
     externalBranchId: 'branch-01',
   },
@@ -76,14 +75,14 @@ describe('integrationEventSchema', () => {
 describe('integrationEventDedupeKey', () => {
   it('scopes the event identifier to its producer tenant and branch', () => {
     const parsed = integrationEventSchema.parse(validOrderEvent);
-    expect(integrationEventDedupeKey(parsed)).toBe('altayebat:store-001:branch-01:c3a1d0a6-85a0-4b8c-8d3f-3b0e0f4c5a01');
+    expect(integrationEventDedupeKey(parsed)).toBe('altayebat:store-001:branch=branch-01:c3a1d0a6-85a0-4b8c-8d3f-3b0e0f4c5a01');
   });
 
   it('uses an explicit placeholder when no branch is provided', () => {
     const parsed = integrationEventSchema.parse({
       ...validOrderEvent,
-      tenant: { source: 'altayebat', externalTenantId: 'store-001' },
+      tenant: { externalTenantId: 'store-001' },
     });
-    expect(integrationEventDedupeKey(parsed)).toContain('altayebat:store-001:_:');
+    expect(integrationEventDedupeKey(parsed)).toContain('altayebat:store-001:no-branch:');
   });
 });
