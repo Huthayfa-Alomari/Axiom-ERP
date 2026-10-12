@@ -69,25 +69,26 @@ WHERE status IN ('received','failed');
 CREATE INDEX inbox_org_recent_idx
 ON integration.inbox_events (organization_id, received_at DESC);
 
--- Outbox is prepared for reliable outbound events. Producers should insert the
--- business change and outbox record in the same transaction once that workflow exists.
-CREATE TABLE integration.outbox_events (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  organization_id uuid NOT NULL REFERENCES app.organizations(id) ON DELETE RESTRICT,
-  event_id uuid NOT NULL DEFAULT gen_random_uuid(),
-  event_type varchar(100) NOT NULL,
-  schema_version integer NOT NULL DEFAULT 1 CHECK (schema_version > 0),
-  payload jsonb NOT NULL,
-  status varchar(20) NOT NULL DEFAULT 'pending'
-    CHECK (status IN ('pending','publishing','published','failed')),
-  attempt_count integer NOT NULL DEFAULT 0 CHECK (attempt_count >= 0),
-  available_at timestamptz NOT NULL DEFAULT clock_timestamp(),
-  lease_expires_at timestamptz,
-  created_at timestamptz NOT NULL DEFAULT clock_timestamp(),
-  published_at timestamptz,
-  last_error_code varchar(120),
-  UNIQUE (organization_id, event_id)
-);
+-- Extend the existing integration.outbox_events table from migration 0002.
+-- Preserve its bigint primary key and existing aggregate/published/error fields.
+ALTER TABLE integration.outbox_events
+  ADD COLUMN event_id uuid,
+  ADD COLUMN schema_version integer NOT NULL DEFAULT 1 CHECK (schema_version > 0),
+  ADD COLUMN status varchar(20),
+  ADD COLUMN available_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+  ADD COLUMN lease_expires_at timestamptz;
+
+UPDATE integration.outbox_events
+SET event_id = COALESCE(event_id, gen_random_uuid()),
+    status = COALESCE(status, CASE WHEN published_at IS NOT NULL THEN 'published' ELSE 'pending' END);
+
+ALTER TABLE integration.outbox_events
+  ALTER COLUMN event_id SET DEFAULT gen_random_uuid(),
+  ALTER COLUMN event_id SET NOT NULL,
+  ALTER COLUMN status SET DEFAULT 'pending',
+  ALTER COLUMN status SET NOT NULL,
+  ADD CONSTRAINT outbox_status_check CHECK (status IN ('pending','publishing','published','failed')),
+  ADD CONSTRAINT outbox_org_event_uq UNIQUE (organization_id, event_id);
 
 CREATE INDEX outbox_pending_publish_idx
 ON integration.outbox_events (available_at, created_at, id)
